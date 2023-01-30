@@ -1,6 +1,6 @@
 name: encryptiontextfield
 description: encryption text input textfield.
-version: 0.0.8
+version: 0.0.9
 author: WangSiPeng <980736594@qq.com> # 作者信息，会显示到 https://pub.flutter-io.cn 中
 homepage: https://github.com/wspgithub/encryptiontextfield # 必填
 
