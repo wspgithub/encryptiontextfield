@@ -4,6 +4,10 @@
 
 import 'dart:ui' as ui show BoxHeightStyle, BoxWidthStyle;
 
+import 'package:encryptiontextfield/src/widgets/editable_text.dart' as EditableText;
+import 'package:encryptiontextfield/src/widgets/restoration_properties.dart' as MyRestorationProperties;
+import 'package:encryptiontextfield/src/material/adaptive_text_selection_toolbar.dart' as MyAdaptiveTextSelectionToolbar;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -11,35 +15,43 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import 'package:flutter/src/material/adaptive_text_selection_toolbar.dart';
+import 'package:flutter/src/material/colors.dart';
+import 'package:flutter/src/material/debug.dart';
+import 'package:flutter/src/material/desktop_text_selection.dart';
+import 'package:flutter/src/material/feedback.dart';
+import 'package:flutter/src/material/input_decorator.dart';
+import 'package:flutter/src/widgets/magnifier.dart';
+import 'package:flutter/src/material/material_localizations.dart';
+import 'package:flutter/src/material/material_state.dart';
+import 'package:flutter/src/material/selectable_text.dart' show iOSHorizontalOffset;
+import 'package:flutter/src/widgets/text_selection.dart';
+import 'package:flutter/src/material/theme.dart';
 
-import 'package:encryptiontextfield/src/widgets/editable_text.dart' as MyEditableText;
+export 'package:flutter/services.dart' show SmartDashesType, SmartQuotesType, TextCapitalization, TextInputAction, TextInputType;
 
-import 'package:encryptiontextfield/src/widgets/restoration_properties.dart' as MyRestorationProperties;
+// Examples can assume:
+// late BuildContext context;
+// late FocusNode myFocusNode;
 
-import 'package:encryptiontextfield/src/widgets/text_selection.dart' as MyTextSelection;
-
-export 'package:flutter/services.dart' show TextInputType, TextInputAction, TextCapitalization, SmartQuotesType, SmartDashesType;
-
-/// Signature for the [EncryptionTextfield.buildCounter] callback.
+/// Signature for the [TextField.buildCounter] callback.
 typedef InputCounterWidgetBuilder = Widget? Function(
-  /// The build context for the TextField.
-  BuildContext context, {
-  /// The length of the string currently in the input.
-  required int currentLength,
-  /// The maximum string length that can be entered into the TextField.
-  required int? maxLength,
-  /// Whether or not the TextField is currently focused.  Mainly provided for
-  /// the [liveRegion] parameter in the [Semantics] widget for accessibility.
-  required bool isFocused,
-});
+    /// The build context for the TextField.
+    BuildContext context, {
+    /// The length of the string currently in the input.
+    required int currentLength,
+    /// The maximum string length that can be entered into the TextField.
+    required int? maxLength,
+    /// Whether or not the TextField is currently focused. Mainly provided for
+    /// the [liveRegion] parameter in the [Semantics] widget for accessibility.
+    required bool isFocused,
+    });
 
-
-
-class _TextFieldSelectionGestureDetectorBuilder extends MyTextSelection.TextSelectionGestureDetectorBuilder {
+class _TextFieldSelectionGestureDetectorBuilder extends TextSelectionGestureDetectorBuilder {
   _TextFieldSelectionGestureDetectorBuilder({
     required _TextFieldState state,
   }) : _state = state,
-       super(delegate: state);
+        super(delegate: state);
 
   final _TextFieldState _state;
 
@@ -57,33 +69,7 @@ class _TextFieldSelectionGestureDetectorBuilder extends MyTextSelection.TextSele
   }
 
   @override
-  void onSingleLongTapMoveUpdate(LongPressMoveUpdateDetails details) {
-    if (delegate.selectionEnabled) {
-      switch (Theme.of(_state.context).platform) {
-        case TargetPlatform.iOS:
-        case TargetPlatform.macOS:
-          renderEditable.selectPositionAt(
-            from: details.globalPosition,
-            cause: SelectionChangedCause.longPress,
-          );
-          break;
-        case TargetPlatform.android:
-        case TargetPlatform.fuchsia:
-        case TargetPlatform.linux:
-        case TargetPlatform.windows:
-          renderEditable.selectWordsInRange(
-            from: details.globalPosition - details.offsetFromOrigin,
-            to: details.globalPosition,
-            cause: SelectionChangedCause.longPress,
-          );
-          break;
-      }
-    }
-  }
-
-  @override
   void onSingleTapUp(TapUpDetails details) {
-    editableText.hideToolbar();
     super.onSingleTapUp(details);
     _state._requestKeyboard();
     _state.widget.onTap?.call();
@@ -91,20 +77,16 @@ class _TextFieldSelectionGestureDetectorBuilder extends MyTextSelection.TextSele
 
   @override
   void onSingleLongTapStart(LongPressStartDetails details) {
+    super.onSingleLongTapStart(details);
     if (delegate.selectionEnabled) {
       switch (Theme.of(_state.context).platform) {
         case TargetPlatform.iOS:
         case TargetPlatform.macOS:
-          renderEditable.selectPositionAt(
-            from: details.globalPosition,
-            cause: SelectionChangedCause.longPress,
-          );
           break;
         case TargetPlatform.android:
         case TargetPlatform.fuchsia:
         case TargetPlatform.linux:
         case TargetPlatform.windows:
-          renderEditable.selectWord(cause: SelectionChangedCause.longPress);
           Feedback.forLongPress(_state.context);
           break;
       }
@@ -137,7 +119,7 @@ class _TextFieldSelectionGestureDetectorBuilder extends MyTextSelection.TextSele
 /// If [decoration] is non-null (which is the default), the text field requires
 /// one of its ancestors to be a [Material] widget.
 ///
-/// To integrate the [EncryptionTextfield] into a [Form] with other [FormField] widgets,
+/// To integrate the [TextField] into a [Form] with other [FormField] widgets,
 /// consider using [TextFormField].
 ///
 /// {@template flutter.material.textfield.wantKeepAlive}
@@ -152,14 +134,14 @@ class _TextFieldSelectionGestureDetectorBuilder extends MyTextSelection.TextSele
 /// by the object.
 ///
 /// {@tool snippet}
-/// This example shows how to create a [EncryptionTextfield] that will obscure input. The
+/// This example shows how to create a [TextField] that will obscure input. The
 /// [InputDecoration] surrounds the field in a border using [OutlineInputBorder]
 /// and adds a label.
 ///
 /// ![](https://flutter.github.io/assets-for-api-docs/assets/material/text_field.png)
 ///
 /// ```dart
-/// const EncryptionTextfield(
+/// const TextField(
 ///   obscureText: true,
 ///   decoration: InputDecoration(
 ///     border: OutlineInputBorder(),
@@ -171,12 +153,12 @@ class _TextFieldSelectionGestureDetectorBuilder extends MyTextSelection.TextSele
 ///
 /// ## Reading values
 ///
-/// A common way to read a value from a EncryptionTextfield is to use the [onSubmitted]
+/// A common way to read a value from a TextField is to use the [onSubmitted]
 /// callback. This callback is applied to the text field's current value when
 /// the user finishes editing.
 ///
 /// {@tool dartpad}
-/// This sample shows how to get a value from a EncryptionTextfield via the [onSubmitted]
+/// This sample shows how to get a value from a TextField via the [onSubmitted]
 /// callback.
 ///
 /// ** See code in examples/api/lib/material/text_field/text_field.1.dart **
@@ -193,7 +175,7 @@ class _TextFieldSelectionGestureDetectorBuilder extends MyTextSelection.TextSele
 /// require different behavior can override the default [onEditingComplete]
 /// callback.
 ///
-/// Keep in mind you can also always read the current string from a EncryptionTextfield's
+/// Keep in mind you can also always read the current string from a TextField's
 /// [TextEditingController] using [TextEditingController.text].
 ///
 /// ## Handling emojis and other complex characters
@@ -214,7 +196,7 @@ class _TextFieldSelectionGestureDetectorBuilder extends MyTextSelection.TextSele
 ///  * [InputDecorator], which shows the labels and other visual elements that
 ///    surround the actual text editing widget.
 ///  * [EditableText], which is the raw text editing control at the heart of a
-///    [EncryptionTextfield]. The [EditableText] widget is rarely used directly unless
+///    [TextField]. The [EditableText] widget is rarely used directly unless
 ///    you are implementing an entirely different design language, such as
 ///    Cupertino.
 ///  * <https://material.io/design/components/text-fields.html>
@@ -241,7 +223,7 @@ class EncryptionTextfield extends StatefulWidget {
   /// [maxLength] is set a character counter will be displayed below the
   /// field showing how many characters have been entered. If the value is
   /// set to a positive integer it will also display the maximum allowed
-  /// number of characters to be entered.  If the value is set to
+  /// number of characters to be entered. If the value is set to
   /// [TextField.noMaxLength] then only the current length is displayed.
   ///
   /// After [maxLength] characters have been input, additional input
@@ -287,7 +269,11 @@ class EncryptionTextfield extends StatefulWidget {
     this.textAlignVertical,
     this.textDirection,
     this.readOnly = false,
-    MyEditableText.ToolbarOptions? toolbarOptions,
+    @Deprecated(
+      'Use `contextMenuBuilder` instead. '
+          'This feature was deprecated after v3.3.0-0.5.pre.',
+    )
+    this.toolbarOptions,
     this.showCursor,
     this.autofocus = false,
     this.obscuringCharacter = '•',
@@ -322,6 +308,7 @@ class EncryptionTextfield extends StatefulWidget {
     bool? enableInteractiveSelection,
     this.selectionControls,
     this.onTap,
+    this.onTapOutside,
     this.mouseCursor,
     this.buildCounter,
     this.scrollController,
@@ -331,72 +318,68 @@ class EncryptionTextfield extends StatefulWidget {
     this.restorationId,
     this.scribbleEnabled = true,
     this.enableIMEPersonalizedLearning = true,
+    this.contextMenuBuilder = _defaultContextMenuBuilder,
+    this.spellCheckConfiguration,
+    this.magnifierConfiguration,
   }) : assert(textAlign != null),
-       assert(readOnly != null),
-       assert(autofocus != null),
-       assert(obscuringCharacter != null && obscuringCharacter.length == 1),
-       assert(obscureText != null),
-       assert(autocorrect != null),
-       smartDashesType = smartDashesType ?? (obscureText ? SmartDashesType.disabled : SmartDashesType.enabled),
-       smartQuotesType = smartQuotesType ?? (obscureText ? SmartQuotesType.disabled : SmartQuotesType.enabled),
-       assert(enableSuggestions != null),
-       assert(scrollPadding != null),
-       assert(dragStartBehavior != null),
-       assert(selectionHeightStyle != null),
-       assert(selectionWidthStyle != null),
-       assert(maxLines == null || maxLines > 0),
-       assert(minLines == null || minLines > 0),
-       assert(
-         (maxLines == null) || (minLines == null) || (maxLines >= minLines),
-         "minLines can't be greater than maxLines",
-       ),
-       assert(expands != null),
-       assert(
-         !expands || (maxLines == null && minLines == null),
-         'minLines and maxLines must be null when expands is true.',
-       ),
-       assert(!obscureText || maxLines == 1, 'Obscured fields cannot be multiline.'),
-       assert(maxLength == null || maxLength == EncryptionTextfield.noMaxLength || maxLength > 0),
-       // Assert the following instead of setting it directly to avoid surprising the user by silently changing the value they set.
-       assert(
-         !identical(textInputAction, TextInputAction.newline) ||
-         maxLines == 1 ||
-         !identical(keyboardType, TextInputType.text),
-         'Use keyboardType TextInputType.multiline when using TextInputAction.newline on a multiline TextField.',
-       ),
-       assert(clipBehavior != null),
-       assert(enableIMEPersonalizedLearning != null),
-       keyboardType = keyboardType ?? (maxLines == 1 ? TextInputType.text : TextInputType.multiline),
-       enableInteractiveSelection = enableInteractiveSelection ?? (!readOnly || !obscureText),
-       toolbarOptions = toolbarOptions ??
-           (obscureText
-               ? (readOnly
-                   // No point in even offering "Select All" in a read-only obscured
-                   // field.
-                   ? const MyEditableText.ToolbarOptions()
-                   // Writable, but obscured.
-                   : const MyEditableText.ToolbarOptions(
-                       selectAll: true,
-                       paste: true,
-                     ))
-               : (readOnly
-                   // Read-only, not obscured.
-                   ? const MyEditableText.ToolbarOptions(
-                       selectAll: true,
-                       copy: true,
-                     )
-                   // Writable, not obscured.
-                   : const MyEditableText.ToolbarOptions(
-                       copy: true,
-                       cut: true,
-                       selectAll: true,
-                       paste: true,
-                     )));
+        assert(readOnly != null),
+        assert(autofocus != null),
+        assert(obscuringCharacter != null && obscuringCharacter.length == 1),
+        assert(obscureText != null),
+        assert(autocorrect != null),
+        smartDashesType = smartDashesType ?? (obscureText ? SmartDashesType.disabled : SmartDashesType.enabled),
+        smartQuotesType = smartQuotesType ?? (obscureText ? SmartQuotesType.disabled : SmartQuotesType.enabled),
+        assert(enableSuggestions != null),
+        assert(scrollPadding != null),
+        assert(dragStartBehavior != null),
+        assert(selectionHeightStyle != null),
+        assert(selectionWidthStyle != null),
+        assert(maxLines == null || maxLines > 0),
+        assert(minLines == null || minLines > 0),
+        assert(
+        (maxLines == null) || (minLines == null) || (maxLines >= minLines),
+        "minLines can't be greater than maxLines",
+        ),
+        assert(expands != null),
+        assert(
+        !expands || (maxLines == null && minLines == null),
+        'minLines and maxLines must be null when expands is true.',
+        ),
+        assert(!obscureText || maxLines == 1, 'Obscured fields cannot be multiline.'),
+        assert(maxLength == null || maxLength == TextField.noMaxLength || maxLength > 0),
+  // Assert the following instead of setting it directly to avoid surprising the user by silently changing the value they set.
+        assert(
+        !identical(textInputAction, TextInputAction.newline) ||
+            maxLines == 1 ||
+            !identical(keyboardType, TextInputType.text),
+        'Use keyboardType TextInputType.multiline when using TextInputAction.newline on a multiline TextField.',
+        ),
+        assert(clipBehavior != null),
+        assert(enableIMEPersonalizedLearning != null),
+        keyboardType = keyboardType ?? (maxLines == 1 ? TextInputType.text : TextInputType.multiline),
+        enableInteractiveSelection = enableInteractiveSelection ?? (!readOnly || !obscureText);
+
+  /// {@macro flutter.widgets.magnifier.TextMagnifierConfiguration.intro}
+  ///
+  /// {@macro flutter.widgets.magnifier.intro}
+  ///
+  /// {@macro flutter.widgets.magnifier.TextMagnifierConfiguration.details}
+  ///
+  /// By default, builds a [CupertinoTextMagnifier] on iOS and [TextMagnifier]
+  /// on Android, and builds nothing on all other platforms. If it is desired to
+  /// suppress the magnifier, consider passing [TextMagnifierConfiguration.disabled].
+  ///
+  /// {@tool dartpad}
+  /// This sample demonstrates how to customize the magnifier that this text field uses.
+  ///
+  /// ** See code in examples/api/lib/widgets/text_magnifier/text_magnifier.0.dart **
+  /// {@end-tool}
+  final TextMagnifierConfiguration? magnifierConfiguration;
 
   /// Controls the text being edited.
   ///
   /// If null, this widget will create its own [TextEditingController].
-  final MyEditableText.EncryptionTextEditingController? controller;
+  final EditableText.EncryptionTextEditingController? controller;
 
   /// Defines the keyboard focus for this widget.
   ///
@@ -416,7 +399,7 @@ class EncryptionTextfield extends StatefulWidget {
   /// to the [focusNode]:
   ///
   /// ```dart
-  /// focusNode.addListener(() { print(myFocusNode.hasFocus); });
+  /// myFocusNode.addListener(() { print(myFocusNode.hasFocus); });
   /// ```
   ///
   /// If null, this widget will create its own [FocusNode].
@@ -428,7 +411,7 @@ class EncryptionTextfield extends StatefulWidget {
   ///
   /// On Android, the user can hide the keyboard - without changing the focus -
   /// with the system back button. They can restore the keyboard's visibility
-  /// by tapping on a text field.  The user might hide the keyboard and
+  /// by tapping on a text field. The user might hide the keyboard and
   /// switch to a physical keyboard, or they might just need to get it
   /// out of the way for a moment, to expose something it's
   /// obscuring. In this case requesting the focus again will not
@@ -463,7 +446,7 @@ class EncryptionTextfield extends StatefulWidget {
   ///
   /// This text style is also used as the base style for the [decoration].
   ///
-  /// If null, defaults to the `subtitle1` text style from the current [Theme].
+  /// If null, defaults to the `titleMedium` text style from the current [Theme].
   final TextStyle? style;
 
   /// {@macro flutter.widgets.editableText.strutStyle}
@@ -487,13 +470,13 @@ class EncryptionTextfield extends StatefulWidget {
   /// {@macro flutter.widgets.editableText.obscureText}
   final bool obscureText;
 
-  /// {@macro flutter.widgets.editableText.startShow}
+  /// {@macro flutter.widgets.editableText.mustStartshow}
   final int startShow;
 
-  /// {@macro flutter.widgets.editableText.middleHideRange}
+  /// {@macro flutter.widgets.editableText.mustMiddleshow}
   final List<int>? middleHideRange;
 
-  /// {@macro flutter.widgets.editableText.endShow}
+  /// {@macro flutter.widgets.editableText.mustEndshow}
   final int endShow;
 
   /// {@macro flutter.widgets.editableText.autocorrect}
@@ -529,7 +512,11 @@ class EncryptionTextfield extends StatefulWidget {
   /// If not set, select all and paste will default to be enabled. Copy and cut
   /// will be disabled if [obscureText] is true. If [readOnly] is true,
   /// paste and cut will be disabled regardless.
-  final MyEditableText.ToolbarOptions toolbarOptions;
+  @Deprecated(
+    'Use `contextMenuBuilder` instead. '
+        'This feature was deprecated after v3.3.0-0.5.pre.',
+  )
+  final EditableText.ToolbarOptions? toolbarOptions;
 
   /// {@macro flutter.widgets.editableText.showCursor}
   final bool? showCursor;
@@ -538,13 +525,13 @@ class EncryptionTextfield extends StatefulWidget {
   /// part of the character counter is shown.
   static const int noMaxLength = -1;
 
-  /// The maximum number of characters (Unicode scalar values) to allow in the
-  /// text field.
+  /// The maximum number of characters (Unicode grapheme clusters) to allow in
+  /// the text field.
   ///
   /// If set, a character counter will be displayed below the
   /// field showing how many characters have been entered. If set to a number
   /// greater than 0, it will also display the maximum number allowed. If set
-  /// to [EncryptionTextfield.noMaxLength] then only the current character count is displayed.
+  /// to [TextField.noMaxLength] then only the current character count is displayed.
   ///
   /// After [maxLength] characters have been input, additional input
   /// is ignored, unless [maxLengthEnforcement] is set to
@@ -553,9 +540,9 @@ class EncryptionTextfield extends StatefulWidget {
   /// The text field enforces the length with a [LengthLimitingTextInputFormatter],
   /// which is evaluated after the supplied [inputFormatters], if any.
   ///
-  /// This value must be either null, [EncryptionTextfield.noMaxLength], or greater than 0.
+  /// This value must be either null, [TextField.noMaxLength], or greater than 0.
   /// If null (the default) then there is no limit to the number of characters
-  /// that can be entered. If set to [EncryptionTextfield.noMaxLength], then no limit will
+  /// that can be entered. If set to [TextField.noMaxLength], then no limit will
   /// be enforced, but the number of characters entered will still be displayed.
   ///
   /// Whitespace characters (e.g. newline, space, tab) are included in the
@@ -686,6 +673,24 @@ class EncryptionTextfield extends StatefulWidget {
   /// {@endtemplate}
   final GestureTapCallback? onTap;
 
+  /// {@macro flutter.widgets.editableText.onTapOutside}
+  ///
+  /// {@tool dartpad}
+  /// This example shows how to use a `TextFieldTapRegion` to wrap a set of
+  /// "spinner" buttons that increment and decrement a value in the [TextField]
+  /// without causing the text field to lose keyboard focus.
+  ///
+  /// This example includes a generic `SpinnerField<T>` class that you can copy
+  /// into your own project and customize.
+  ///
+  /// ** See code in examples/api/lib/widgets/tap_region/text_field_tap_region.0.dart **
+  /// {@end-tool}
+  ///
+  /// See also:
+  ///
+  ///  * [TapRegion] for how the region group is determined.
+  final TapRegionCallback? onTapOutside;
+
   /// The cursor for a mouse pointer when it enters or is hovering over the
   /// widget.
   ///
@@ -699,7 +704,7 @@ class EncryptionTextfield extends StatefulWidget {
   ///
   /// If this property is null, [MaterialStateMouseCursor.textable] will be used.
   ///
-  /// The [mouseCursor] is the only property of [EncryptionTextfield] that controls the
+  /// The [mouseCursor] is the only property of [TextField] that controls the
   /// appearance of the mouse pointer. All other properties related to "cursor"
   /// stand for the text cursor, which is usually a blinking vertical line at
   /// the editing position.
@@ -708,7 +713,7 @@ class EncryptionTextfield extends StatefulWidget {
   /// Callback that generates a custom [InputDecoration.counter] widget.
   ///
   /// See [InputCounterWidgetBuilder] for an explanation of the passed in
-  /// arguments.  The returned widget will be placed below the line in place of
+  /// arguments. The returned widget will be placed below the line in place of
   /// the default widget built when [InputDecoration.counterText] is specified.
   ///
   /// The returned widget will be wrapped in a [Semantics] widget for
@@ -777,13 +782,48 @@ class EncryptionTextfield extends StatefulWidget {
   /// {@macro flutter.services.TextInputConfiguration.enableIMEPersonalizedLearning}
   final bool enableIMEPersonalizedLearning;
 
+  /// {@macro flutter.widgets.EditableText.contextMenuBuilder}
+  ///
+  /// If not provided, will build a default menu based on the platform.
+  ///
+  /// See also:
+  ///
+  ///  * [AdaptiveTextSelectionToolbar], which is built by default.
+  final EditableText.EditableTextContextMenuBuilder? contextMenuBuilder;
+
+  static Widget _defaultContextMenuBuilder(BuildContext context, EditableText.EditableTextState editableTextState) {
+    return MyAdaptiveTextSelectionToolbar.AdaptiveTextSelectionToolbar.editableText(
+      editableTextState: editableTextState,
+    );
+  }
+
+  /// {@macro flutter.widgets.EditableText.spellCheckConfiguration}
+  ///
+  /// If [SpellCheckConfiguration.misspelledTextStyle] is not specified in this
+  /// configuration, then [materialMisspelledTextStyle] is used by default.
+  final SpellCheckConfiguration? spellCheckConfiguration;
+
+  /// The [TextStyle] used to indicate misspelled words in the Material style.
+  ///
+  /// See also:
+  ///  * [SpellCheckConfiguration.misspelledTextStyle], the style configured to
+  ///    mark misspelled words with.
+  ///  * [CupertinoTextField.cupertinoMisspelledTextStyle], the style configured
+  ///    to mark misspelled words with in the Cupertino style.
+  static const TextStyle materialMisspelledTextStyle =
+  TextStyle(
+    decoration: TextDecoration.underline,
+    decorationColor: Colors.red,
+    decorationStyle: TextDecorationStyle.wavy,
+  );
+
   @override
   State<EncryptionTextfield> createState() => _TextFieldState();
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
-    properties.add(DiagnosticsProperty<MyEditableText.EncryptionTextEditingController>('controller', controller, defaultValue: null));
+    properties.add(DiagnosticsProperty<EditableText.EncryptionTextEditingController>('controller', controller, defaultValue: null));
     properties.add(DiagnosticsProperty<FocusNode>('focusNode', focusNode, defaultValue: null));
     properties.add(DiagnosticsProperty<bool>('enabled', enabled, defaultValue: null));
     properties.add(DiagnosticsProperty<InputDecoration>('decoration', decoration, defaultValue: const InputDecoration()));
@@ -819,26 +859,25 @@ class EncryptionTextfield extends StatefulWidget {
     properties.add(DiagnosticsProperty<Clip>('clipBehavior', clipBehavior, defaultValue: Clip.hardEdge));
     properties.add(DiagnosticsProperty<bool>('scribbleEnabled', scribbleEnabled, defaultValue: true));
     properties.add(DiagnosticsProperty<bool>('enableIMEPersonalizedLearning', enableIMEPersonalizedLearning, defaultValue: true));
+    properties.add(DiagnosticsProperty<SpellCheckConfiguration>('spellCheckConfiguration', spellCheckConfiguration, defaultValue: null));
   }
 }
 
-
-
-class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin implements MyTextSelection.TextSelectionGestureDetectorBuilderDelegate, AutofillClient {
+class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin implements TextSelectionGestureDetectorBuilderDelegate, AutofillClient {
   MyRestorationProperties.RestorableTextEditingController? _controller;
-  MyEditableText.EncryptionTextEditingController get _effectiveController => widget.controller ?? _controller!.value;
+  EditableText.EncryptionTextEditingController get _effectiveController => widget.controller ?? _controller!.value;
 
   FocusNode? _focusNode;
   FocusNode get _effectiveFocusNode => widget.focusNode ?? (_focusNode ??= FocusNode());
 
   MaxLengthEnforcement get _effectiveMaxLengthEnforcement => widget.maxLengthEnforcement
-    ?? LengthLimitingTextInputFormatter.getDefaultMaxLengthEnforcement(Theme.of(context).platform);
+      ?? LengthLimitingTextInputFormatter.getDefaultMaxLengthEnforcement(Theme.of(context).platform);
 
   bool _isHovering = false;
 
   bool get needsCounter => widget.maxLength != null
-    && widget.decoration != null
-    && widget.decoration!.counterText == null;
+      && widget.decoration != null
+      && widget.decoration!.counterText == null;
 
   bool _showSelectionHandles = false;
 
@@ -849,7 +888,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
   late bool forcePressEnabled;
 
   @override
-  final GlobalKey<MyEditableText.EditableTextState> editableTextKey = GlobalKey<MyEditableText.EditableTextState>();
+  final GlobalKey<EditableTextState> editableTextKey = GlobalKey<EditableTextState>();
 
   @override
   bool get selectionEnabled => widget.selectionEnabled;
@@ -867,11 +906,11 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
     final MaterialLocalizations localizations = MaterialLocalizations.of(context);
     final ThemeData themeData = Theme.of(context);
     final InputDecoration effectiveDecoration = (widget.decoration ?? const InputDecoration())
-      .applyDefaults(themeData.inputDecorationTheme)
-      .copyWith(
-        enabled: _isEnabled,
-        hintMaxLines: widget.decoration?.hintMaxLines ?? widget.maxLines,
-      );
+        .applyDefaults(themeData.inputDecorationTheme)
+        .copyWith(
+      enabled: _isEnabled,
+      hintMaxLines: widget.decoration?.hintMaxLines ?? widget.maxLines,
+    );
 
     // No need to build anything if counter or counterText were given directly.
     if (effectiveDecoration.counter != null || effectiveDecoration.counterText != null) {
@@ -921,7 +960,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
       return effectiveDecoration.copyWith(
         errorText: effectiveDecoration.errorText ?? '',
         counterStyle: effectiveDecoration.errorStyle
-          ?? themeData.textTheme.caption!.copyWith(color: themeData.errorColor),
+            ?? (themeData.useMaterial3 ? _m3CounterErrorStyle(context): _m2CounterErrorStyle(context)),
         counterText: counterText,
         semanticCounterText: semanticCounterText,
       );
@@ -997,7 +1036,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
     registerForRestoration(_controller!, 'controller');
   }
 
-  void _createLocalController([TextEditingValue? value]) {
+  void _createLocalController([EditableText.TextEditingValue? value]) {
     assert(_controller == null);
     _controller = value == null
         ? MyRestorationProperties.RestorableTextEditingController()
@@ -1018,7 +1057,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
     super.dispose();
   }
 
-  MyEditableText.EditableTextState? get _editableText => editableTextKey.currentState;
+  EditableTextState? get _editableText => editableTextKey.currentState;
 
   void _requestKeyboard() {
     _editableText?.requestKeyboard();
@@ -1072,19 +1111,29 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
     switch (Theme.of(context).platform) {
       case TargetPlatform.iOS:
       case TargetPlatform.macOS:
-        if (cause == SelectionChangedCause.longPress
-            || cause == SelectionChangedCause.drag) {
-          _editableText?.bringIntoView(selection.extent);
-        }
-        return;
       case TargetPlatform.linux:
       case TargetPlatform.windows:
       case TargetPlatform.fuchsia:
       case TargetPlatform.android:
-        if (cause == SelectionChangedCause.drag) {
+        if (cause == SelectionChangedCause.longPress
+            || cause == SelectionChangedCause.drag) {
           _editableText?.bringIntoView(selection.extent);
         }
-        return;
+        break;
+    }
+
+    switch (Theme.of(context).platform) {
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+      case TargetPlatform.android:
+        break;
+      case TargetPlatform.macOS:
+      case TargetPlatform.linux:
+      case TargetPlatform.windows:
+        if (cause == SelectionChangedCause.drag) {
+          _editableText?.hideToolbar();
+        }
+        break;
     }
   }
 
@@ -1114,13 +1163,13 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
   TextInputConfiguration get textInputConfiguration {
     final List<String>? autofillHints = widget.autofillHints?.toList(growable: false);
     final AutofillConfiguration autofillConfiguration = autofillHints != null
-      ? AutofillConfiguration(
-          uniqueIdentifier: autofillId,
-          autofillHints: autofillHints,
-          currentEditingValue: _effectiveController.value,
-          hintText: (widget.decoration ?? const InputDecoration()).hintText,
-        )
-      : AutofillConfiguration.disabled;
+        ? AutofillConfiguration(
+      uniqueIdentifier: autofillId,
+      autofillHints: autofillHints,
+      currentEditingValue: _effectiveController.value,
+      hintText: (widget.decoration ?? const InputDecoration()).hintText,
+    )
+        : AutofillConfiguration.disabled;
 
     return _editableText!.textInputConfiguration.copyWith(autofillConfiguration: autofillConfiguration);
   }
@@ -1132,16 +1181,16 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
     assert(debugCheckHasMaterialLocalizations(context));
     assert(debugCheckHasDirectionality(context));
     assert(
-      !(widget.style != null && widget.style!.inherit == false &&
+    !(widget.style != null && widget.style!.inherit == false &&
         (widget.style!.fontSize == null || widget.style!.textBaseline == null)),
-      'inherit false style must supply fontSize and textBaseline',
+    'inherit false style must supply fontSize and textBaseline',
     );
 
     final ThemeData theme = Theme.of(context);
     final DefaultSelectionStyle selectionStyle = DefaultSelectionStyle.of(context);
-    final TextStyle style = theme.textTheme.subtitle1!.merge(widget.style);
+    final TextStyle style = (theme.useMaterial3 ? _m3InputStyle(context) : theme.textTheme.titleMedium!).merge(widget.style);
     final Brightness keyboardAppearance = widget.keyboardAppearance ?? theme.brightness;
-    final MyEditableText.EncryptionTextEditingController controller = _effectiveController;
+    final EditableText.EncryptionTextEditingController controller = _effectiveController;
     final FocusNode focusNode = _effectiveFocusNode;
     final List<TextInputFormatter> formatters = <TextInputFormatter>[
       ...?widget.inputFormatters,
@@ -1151,6 +1200,17 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
           maxLengthEnforcement: _effectiveMaxLengthEnforcement,
         ),
     ];
+
+    // Set configuration as disabled if not otherwise specified. If specified,
+    // ensure that configuration uses Material text style for misspelled words
+    // unless a custom style is specified.
+    final SpellCheckConfiguration spellCheckConfiguration =
+    widget.spellCheckConfiguration != null &&
+        widget.spellCheckConfiguration != const SpellCheckConfiguration.disabled()
+        ? widget.spellCheckConfiguration!.copyWith(
+        misspelledTextStyle: widget.spellCheckConfiguration!.misspelledTextStyle
+            ?? TextField.materialMisspelledTextStyle)
+        : const SpellCheckConfiguration.disabled();
 
     TextSelectionControls? textSelectionControls = widget.selectionControls;
     final bool paintCursorAboveText;
@@ -1166,7 +1226,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
       case TargetPlatform.iOS:
         final CupertinoThemeData cupertinoTheme = CupertinoTheme.of(context);
         forcePressEnabled = true;
-        textSelectionControls ??= cupertinoTextSelectionControls;
+        textSelectionControls ??= cupertinoTextSelectionHandleControls;
         paintCursorAboveText = true;
         cursorOpacityAnimates = true;
         cursorColor = widget.cursorColor ?? selectionStyle.cursorColor ?? cupertinoTheme.primaryColor;
@@ -1179,7 +1239,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
       case TargetPlatform.macOS:
         final CupertinoThemeData cupertinoTheme = CupertinoTheme.of(context);
         forcePressEnabled = false;
-        textSelectionControls ??= cupertinoDesktopTextSelectionControls;
+        textSelectionControls ??= cupertinoDesktopTextSelectionHandleControls;
         paintCursorAboveText = true;
         cursorOpacityAnimates = false;
         cursorColor = widget.cursorColor ?? selectionStyle.cursorColor ?? cupertinoTheme.primaryColor;
@@ -1197,7 +1257,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
       case TargetPlatform.android:
       case TargetPlatform.fuchsia:
         forcePressEnabled = false;
-        textSelectionControls ??= materialTextSelectionControls;
+        textSelectionControls ??= materialTextSelectionHandleControls;
         paintCursorAboveText = false;
         cursorOpacityAnimates = false;
         cursorColor = widget.cursorColor ?? selectionStyle.cursorColor ?? theme.colorScheme.primary;
@@ -1206,7 +1266,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
 
       case TargetPlatform.linux:
         forcePressEnabled = false;
-        textSelectionControls ??= desktopTextSelectionControls;
+        textSelectionControls ??= desktopTextSelectionHandleControls;
         paintCursorAboveText = false;
         cursorOpacityAnimates = false;
         cursorColor = widget.cursorColor ?? selectionStyle.cursorColor ?? theme.colorScheme.primary;
@@ -1215,7 +1275,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
 
       case TargetPlatform.windows:
         forcePressEnabled = false;
-        textSelectionControls ??= desktopTextSelectionControls;
+        textSelectionControls ??= desktopTextSelectionHandleControls;
         paintCursorAboveText = false;
         cursorOpacityAnimates = false;
         cursorColor = widget.cursorColor ?? selectionStyle.cursorColor ?? theme.colorScheme.primary;
@@ -1232,7 +1292,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
     Widget child = RepaintBoundary(
       child: UnmanagedRestorationScope(
         bucket: bucket,
-        child: MyEditableText.EditableText(
+        child: EditableText.EditableText(
           key: editableTextKey,
           readOnly: widget.readOnly || !_isEnabled,
           toolbarOptions: widget.toolbarOptions,
@@ -1250,9 +1310,9 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
           autofocus: widget.autofocus,
           obscuringCharacter: widget.obscuringCharacter,
           obscureText: widget.obscureText,
-          startShow: widget.startShow,
-          middleHideRange: widget.middleHideRange,
-          endShow: widget.endShow,
+          mustStartshow: widget.startShow,
+          mustMiddleHideRange: widget.middleHideRange,
+          mustEndshow: widget.endShow,
           autocorrect: widget.autocorrect,
           smartDashesType: widget.smartDashesType,
           smartQuotesType: widget.smartQuotesType,
@@ -1269,6 +1329,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
           onSubmitted: widget.onSubmitted,
           onAppPrivateCommand: widget.onAppPrivateCommand,
           onSelectionHandleTapped: _handleSelectionHandleTapped,
+          onTapOutside: widget.onTapOutside,
           inputFormatters: formatters,
           rendererIgnoresPointer: true,
           mouseCursor: MouseCursor.defer, // TextField will handle the cursor
@@ -1294,6 +1355,9 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
           restorationId: 'editable',
           scribbleEnabled: widget.scribbleEnabled,
           enableIMEPersonalizedLearning: widget.enableIMEPersonalizedLearning,
+          contextMenuBuilder: widget.contextMenuBuilder,
+          spellCheckConfiguration: spellCheckConfiguration,
+          magnifierConfiguration: widget.magnifierConfiguration ?? TextMagnifier.adaptiveMagnifierConfiguration,
         ),
       ),
     );
@@ -1329,19 +1393,18 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
 
     final int? semanticsMaxValueLength;
     if (_effectiveMaxLengthEnforcement != MaxLengthEnforcement.none &&
-      widget.maxLength != null &&
-      widget.maxLength! > 0) {
+        widget.maxLength != null &&
+        widget.maxLength! > 0) {
       semanticsMaxValueLength = widget.maxLength;
     } else {
       semanticsMaxValueLength = null;
     }
 
-    return FocusTrapArea(
-      focusNode: focusNode,
-      child: MouseRegion(
-        cursor: effectiveMouseCursor,
-        onEnter: (PointerEnterEvent event) => _handleHover(true),
-        onExit: (PointerExitEvent event) => _handleHover(false),
+    return MouseRegion(
+      cursor: effectiveMouseCursor,
+      onEnter: (PointerEnterEvent event) => _handleHover(true),
+      onExit: (PointerExitEvent event) => _handleHover(false),
+      child: TextFieldTapRegion(
         child: IgnorePointer(
           ignoring: !_isEnabled,
           child: AnimatedBuilder(
@@ -1370,3 +1433,22 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
     );
   }
 }
+
+TextStyle _m2CounterErrorStyle(BuildContext context) =>
+    Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).colorScheme.error);
+
+// BEGIN GENERATED TOKEN PROPERTIES - TextField
+
+// Do not edit by hand. The code between the "BEGIN GENERATED" and
+// "END GENERATED" comments are generated from data in the Material
+// Design token database by the script:
+//   dev/tools/gen_defaults/bin/gen_defaults.dart.
+
+// Token database version: v0_143
+
+TextStyle _m3InputStyle(BuildContext context) => Theme.of(context).textTheme.bodyLarge!;
+
+TextStyle _m3CounterErrorStyle(BuildContext context) =>
+    Theme.of(context).textTheme.bodySmall!.copyWith(color:Theme.of(context).colorScheme.error);
+
+// END GENERATED TOKEN PROPERTIES - TextField
