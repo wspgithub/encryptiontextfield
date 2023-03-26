@@ -6,6 +6,8 @@ import 'dart:ui' as ui show BoxHeightStyle, BoxWidthStyle;
 
 import 'package:encryptiontextfield/src/widgets/editable_text.dart' as EditableText;
 import 'package:encryptiontextfield/src/widgets/restoration_properties.dart' as MyRestorationProperties;
+import 'package:encryptiontextfield/src/widgets/text_selection.dart' as MyTextSelection;
+
 import 'package:encryptiontextfield/src/material/adaptive_text_selection_toolbar.dart' as MyAdaptiveTextSelectionToolbar;
 
 import 'package:flutter/cupertino.dart';
@@ -47,7 +49,7 @@ typedef InputCounterWidgetBuilder = Widget? Function(
     required bool isFocused,
     });
 
-class _TextFieldSelectionGestureDetectorBuilder extends TextSelectionGestureDetectorBuilder {
+class _TextFieldSelectionGestureDetectorBuilder extends MyTextSelection.TextSelectionGestureDetectorBuilder {
   _TextFieldSelectionGestureDetectorBuilder({
     required _TextFieldState state,
   }) : _state = state,
@@ -863,7 +865,7 @@ class EncryptionTextfield extends StatefulWidget {
   }
 }
 
-class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin implements TextSelectionGestureDetectorBuilderDelegate, AutofillClient {
+class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin implements MyTextSelection.TextSelectionGestureDetectorBuilderDelegate, AutofillClient {
   MyRestorationProperties.RestorableTextEditingController? _controller;
   EditableText.EncryptionTextEditingController get _effectiveController => widget.controller ?? _controller!.value;
 
@@ -888,7 +890,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
   late bool forcePressEnabled;
 
   @override
-  final GlobalKey<EditableTextState> editableTextKey = GlobalKey<EditableTextState>();
+  final GlobalKey<EditableText.EditableTextState> editableTextKey = GlobalKey<EditableText.EditableTextState>();
 
   @override
   bool get selectionEnabled => widget.selectionEnabled;
@@ -1057,7 +1059,7 @@ class _TextFieldState extends State<EncryptionTextfield> with RestorationMixin i
     super.dispose();
   }
 
-  EditableTextState? get _editableText => editableTextKey.currentState;
+  EditableText.EditableTextState? get _editableText => editableTextKey.currentState;
 
   void _requestKeyboard() {
     _editableText?.requestKeyboard();
